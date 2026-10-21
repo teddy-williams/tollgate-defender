@@ -41,7 +41,7 @@ jobs:
           docker save "$IMAGE:${GITHUB_REF_NAME#v}" | gzip > "tollgate-image-$GITHUB_REF_NAME.tar.gz"
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker push --all-tags "$IMAGE"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
