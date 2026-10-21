@@ -1,0 +1,85 @@
+# Tollgate
+
+**Every file and link pays the toll before it gets through.**
+
+[![CI](https://github.com/teddy-williams/tollgate-defender/actions/workflows/ci.yml/badge.svg)](https://github.com/teddy-williams/tollgate-defender/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+Tollgate is a free, self-hosted triage tool for defenders. Drop in a suspicious file or link and get a verdict
+(**Clean / Suspicious / Malicious**), a 0-100 score, and the evidence behind it. It works fully **offline** from the
+command line, or as a **web app for a team** with accounts and roles. It never executes what you give it, and can hand a file to your
+own **CAPE sandbox** when an analyst asks.
+
+<!-- Add a screenshot after your first run: docs/img/scan.png, then: ![Tollgate scan result](docs/img/scan.png) -->
+
+## What it does
+
+| You give it | Tollgate checks |
+|---|---|
+| **Files** | Real type from content (not the extension), double extensions (`invoice.pdf.exe`, hidden `.pdf.lnk`), right-to-left-override and invisible characters in names, hashes, **YARA** on every file |
+| **.exe / .dll** | Entropy, packers, RWX sections, imports, resources, overlays, ransomware/LOLBin strings, imphash |
+| **.lnk shortcuts** | Full structural parse: target, arguments (padding, hidden newlines, encoded PowerShell **decoded and re-examined**), decoy icons, remote/WebDAV paths that force authentication, payloads appended after the structure, where the shortcut was created (machine name / MAC) |
+| **.pdf** | Objects and streams, auto-run JavaScript (including scripts hidden in object streams and `#xx`-obfuscated keywords), `/Launch`, remote GoTo, links, **embedded files extracted and scanned**, data appended after `%%EOF`, decompression-bomb protection |
+| **URLs** | Defang/refang, `@` tricks, raw and obfuscated IPs, look-alike hosts, abused TLDs, shorteners, payload links, **threat-intel lookup**, optional **safe redirect tracing** |
+| **Behaviour (optional)** | Send a file to your **CAPE sandbox**: behaviours, network, dropped files and malware family are folded into the same verdict |
+| **Your knowledge** | A **threat-intel database** (hashes, imphash, domains, URLs, IPs; **abuse.ch feeds** supported), your **YARA rules**, **scan history**, and a **retro-hunt** that re-checks everything you ever scanned against today's intel |
+
+When a new attack appears: add its indicators or a YARA rule, press **Retro-hunt**, and see which past files are now known-bad.
+
+## What it is not
+Not an antivirus and not a sandbox itself. It does static analysis and triage, and can drive a CAPE server you run. "Clean" means *no known
+indicators were found*, not *safe*. Treat Tollgate as one signal among several.
+
+## Quick start
+
+**Web app for you or your team (Docker):**
+```bash
+git clone https://github.com/teddy-williams/tollgate-defender.git && cd tollgate-defender
+cp .env.example .env                     # put a random TOLLGATE_TRACER_TOKEN in it (openssl rand -hex 32)
+mkdir -p data samples && sudo chown 10001 data     # (Linux only)
+docker compose up -d --build api tracer
+docker compose run --rm cli user create-master YOUR-USERNAME     # your owner account; asks for a password
+# open http://127.0.0.1:8080 and sign in
+```
+
+**Command line, no Docker (Python 3.10+):**
+```bash
+pipx install "tollgate-defender[all]"    # or: pip install "tollgate-defender[all]"
+tollgate scan suspicious.exe
+tollgate url "hxxps://login-secure[.]example/verify.exe"
+tollgate user create-master YOUR-USERNAME && tollgate serve      # optional web UI on http://127.0.0.1:8080
+```
+
+**Air-gapped / offline:** see [docs/INSTALL.md](docs/INSTALL.md): wheelhouse (pip) and `docker save`/`docker load`, plus moving threat intel in and out with `intel export` / `intel load`.
+
+## Accounts
+Viewer (read), analyst (+ scan, URL checks, sandbox), admin (+ intel, rules, users) and one **master** (the owner; cannot be demoted, disabled or deleted;
+the only one who can create admins). Scrypt passwords, lockout, server-side sessions with CSRF protection, API tokens for scripts, and an audit log.
+See [docs/ACCOUNTS.md](docs/ACCOUNTS.md).
+
+## How verdicts work
+Every check produces a *finding* with a severity (info, low, medium, high, critical). Scores add up
+(low 3, medium 10, high 25, critical 50, capped at 100): **15+ is Suspicious, 60+ is Malicious**. A critical match from
+threat intel, a `critical` YARA rule, or a malware family named by the sandbox is decisive on its own. Every verdict is explainable: you can always see which
+findings produced it. Weights are starting values and are not yet calibrated on a large corpus; tune to your environment.
+
+## Documentation
+- [Install](docs/INSTALL.md): Docker, pip, offline and air-gapped, upgrades
+- [Usage](docs/USAGE.md): web UI, CLI cookbook, API, workflows, automation
+- [Accounts](docs/ACCOUNTS.md) · [Threat feeds & your abuse.ch key](docs/FEEDS.md) · [Sandbox (CAPE)](docs/CAPE.md)
+- [Deployment](docs/DEPLOYMENT.md): running it for a team safely (HTTPS, hardening, backups)
+- [Writing rules](docs/RULES.md) · [Architecture](docs/ARCHITECTURE.md)
+- [Security policy](SECURITY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+
+## Safety and responsible use
+Tollgate is for **defensive** work: triaging files and links you are authorised to examine. It parses hostile input, so
+run it in the provided container or a VM, keep the web UI behind HTTPS and off the open internet, and do not upload files you are not permitted to share.
+Redirect tracing contacts the URL (the tracer is isolated and SSRF-guarded, and still best run from a disposable host or VPN). Sandboxing real malware is hazardous:
+isolate CAPE and choose its network routing deliberately.
+
+## Status
+Beta. Solid: triage, PE/LNK/PDF analysis, YARA, intel and feeds, history, URL checks, accounts, API and UI. Written to CAPE's documented API and tested against a fake CAPE, not yet against a live one.
+Next: calibrating scores on a corpus, more file types, user-facing scheduling, PostgreSQL for larger teams. Feedback and detection rules welcome.
+
+## License
+[Apache-2.0](LICENSE). Contributions are accepted under the same license.

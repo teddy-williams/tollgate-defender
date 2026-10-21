@@ -1,0 +1,42 @@
+{
+  "_comment": "Copy to feeds.json (in your TOLLGATE_HOME, or ./config for Docker). Put the abuse.ch Auth-Key in .env as ABUSECH_AUTH_KEY, never in this file. Endpoint URLs and response formats are taken from abuse.ch's public API documentation: verify them against https://abuse.ch and run `tollgate intel fetch` once to confirm before scheduling. 'severity' is how strongly a match counts: critical = decisive Malicious verdict.",
+  "feeds": [
+    {
+      "name": "abuse.ch URLhaus (recent malware URLs)",
+      "url": "https://urlhaus-api.abuse.ch/v1/urls/recent/",
+      "headers_from_env": { "Auth-Key": "ABUSECH_AUTH_KEY" },
+      "format": "json",
+      "json_path": "urls",
+      "json_field": "url",
+      "type": "url",
+      "source": "abuse.ch URLhaus",
+      "severity": "high"
+    },
+    {
+      "name": "abuse.ch MalwareBazaar (recent sample hashes)",
+      "url": "https://mb-api.abuse.ch/api/v1/",
+      "method": "POST",
+      "body": { "query": "get_recent", "selector": "time" },
+      "body_format": "form",
+      "headers_from_env": { "Auth-Key": "ABUSECH_AUTH_KEY" },
+      "format": "json",
+      "json_path": "data",
+      "json_field": "sha256_hash",
+      "family_field": "signature",
+      "type": "sha256",
+      "source": "abuse.ch MalwareBazaar",
+      "severity": "critical"
+    },
+    {
+      "name": "abuse.ch ThreatFox (recent IOCs, last day)",
+      "url": "https://threatfox-api.abuse.ch/api/v1/",
+      "body": { "query": "get_iocs", "days": 1 },
+      "body_format": "json",
+      "headers_from_env": { "Auth-Key": "ABUSECH_AUTH_KEY" },
+      "format": "threatfox",
+      "min_confidence": 75,
+      "source": "abuse.ch ThreatFox",
+      "severity": "high"
+    }
+  ]
+}

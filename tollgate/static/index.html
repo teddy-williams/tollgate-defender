@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tollgate</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="login-view" class="center" hidden>
+    <form id="login-form" class="card" autocomplete="on">
+      <div class="brand"><span class="mark">T</span><div><b>Tollgate</b><small>every file and link pays the toll</small></div></div>
+      <h2>Sign in</h2>
+      <input id="login-user" type="text" placeholder="username" autocomplete="username" spellcheck="false">
+      <input id="login-pass" type="password" placeholder="password" autocomplete="current-password">
+      <button class="primary" type="submit">Sign in</button>
+      <div id="login-msg"></div>
+    </form>
+  </div>
+
+  <div id="change-view" class="center" hidden>
+    <form id="change-form" class="card">
+      <h2>Choose a new password</h2>
+      <p class="muted">You must set your own password before continuing. Use at least 12 characters; a passphrase of several words works well.</p>
+      <input id="chg-current" type="password" placeholder="current password" autocomplete="current-password">
+      <input id="chg-new" type="password" placeholder="new password" autocomplete="new-password">
+      <input id="chg-new2" type="password" placeholder="repeat new password" autocomplete="new-password">
+      <button class="primary" type="submit">Change password</button>
+      <div id="chg-msg"></div>
+    </form>
+  </div>
+
+  <div id="app-view" hidden>
+    <header>
+      <div class="brand"><span class="mark">T</span><div><b>Tollgate</b><small>every file and link pays the toll</small></div></div>
+      <nav id="tabs" role="tablist">
+        <button data-tab="scan" data-min="analyst">Scan a file</button>
+        <button data-tab="url" data-min="analyst">Check a URL</button>
+        <button data-tab="history" data-min="viewer">History</button>
+        <button data-tab="intel" data-min="viewer">Intel &amp; rules</button>
+        <button data-tab="users" data-min="admin">Users &amp; audit</button>
+      </nav>
+      <div id="health" class="health" title="service status"></div>
+      <div class="usermenu">
+        <button id="user-btn" class="chip-user" aria-haspopup="true"></button>
+        <div id="user-menu" class="menu" hidden>
+          <button id="menu-account">Account &amp; API tokens</button>
+          <button id="menu-logout">Sign out</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="tab-scan" class="tab">
+        <label id="drop" class="drop" tabindex="0">
+          <input id="file" type="file" hidden>
+          <div class="drop-title">Drop a file here, or click to choose</div>
+          <div class="drop-sub">The file is analysed as bytes only. It is never executed or opened.</div>
+        </label>
+        <label class="check"><input id="record" type="checkbox" checked> Log this scan to history</label>
+        <label id="detonate-row" class="check" hidden><input id="detonate" type="checkbox"> Also detonate in the sandbox <span class="warn">(sends this file to your CAPE server and runs it there)</span></label>
+        <div id="scan-out"></div>
+      </section>
+
+      <section id="tab-url" class="tab">
+        <form id="url-form" class="row" autocomplete="off">
+          <input id="url-input" type="text" placeholder="paste a URL, defanged or not  e.g. hxxps://evil[.]example/login" spellcheck="false">
+          <button class="primary" type="submit">Check</button>
+        </form>
+        <label class="check"><input id="trace" type="checkbox"> Trace redirects <span class="warn">(contacts the URL from the server; the attacker may see the server's IP)</span></label>
+        <div id="url-out"></div>
+      </section>
+
+      <section id="tab-history" class="tab">
+        <div class="row">
+          <input id="h-name" type="text" placeholder="filename contains">
+          <select id="h-verdict"><option value="">any verdict</option><option>Malicious</option><option>Suspicious</option><option>Clean</option></select>
+          <button id="h-refresh" class="primary">Refresh</button>
+          <button id="h-urls">Tracked URLs</button>
+        </div>
+        <div id="history-out"></div>
+        <div id="history-detail"></div>
+      </section>
+
+      <section id="tab-intel" class="tab">
+        <div id="intel-stats" class="cards"></div>
+        <div class="row">
+          <input id="i-search" type="text" placeholder="search a hash, domain, URL or IP in the intel database">
+          <button id="i-search-btn" class="primary">Search</button>
+          <button id="i-retro">Retro-hunt history</button>
+        </div>
+        <div id="intel-out"></div>
+
+        <div id="admin-forms" hidden>
+          <h3>Update intel <small>(administrators)</small></h3>
+          <div class="grid2">
+            <form id="ioc-form" class="panel">
+              <h4>Add an indicator</h4>
+              <select id="ioc-type"><option>sha256</option><option>md5</option><option>sha1</option><option>imphash</option><option>domain</option><option>url</option><option>ip</option></select>
+              <input id="ioc-value" type="text" placeholder="value" spellcheck="false">
+              <input id="ioc-family" type="text" placeholder="family / campaign (optional)">
+              <select id="ioc-sev"><option>critical</option><option>high</option><option>medium</option><option>low</option></select>
+              <button class="primary" type="submit">Add</button>
+            </form>
+            <form id="imp-form" class="panel">
+              <h4>Import a list</h4>
+              <select id="imp-type"><option>sha256</option><option>md5</option><option>sha1</option><option>imphash</option><option>domain</option><option>url</option><option>ip</option></select>
+              <textarea id="imp-text" rows="4" placeholder="one indicator per line (# comments ok)" spellcheck="false"></textarea>
+              <button class="primary" type="submit">Import</button>
+            </form>
+            <form id="rx-form" class="panel">
+              <h4>Add a string-match rule</h4>
+              <input id="rx-name" type="text" placeholder="rule name">
+              <input id="rx-regex" type="text" placeholder="regex over strings in PE files" spellcheck="false">
+              <select id="rx-sev"><option>high</option><option>critical</option><option>medium</option><option>low</option></select>
+              <input id="rx-desc" type="text" placeholder="description">
+              <button class="primary" type="submit">Add rule</button>
+            </form>
+            <form id="yr-form" class="panel">
+              <h4>Add a YARA rule file</h4>
+              <input id="yr-name" type="text" placeholder="file name, e.g. zetaloader">
+              <textarea id="yr-text" rows="6" placeholder="rule Name { meta: severity = &quot;high&quot; strings: $a = &quot;...&quot; condition: $a }" spellcheck="false"></textarea>
+              <button class="primary" type="submit">Validate &amp; add</button>
+            </form>
+          </div>
+          <div id="admin-out"></div>
+        </div>
+        <h3>Loaded rules</h3>
+        <div id="rules-out"></div>
+      </section>
+
+      <section id="tab-users" class="tab">
+        <h3>Accounts</h3>
+        <div id="users-out"></div>
+        <form id="user-create-form" class="panel">
+          <h4>Create an account</h4>
+          <div class="row">
+            <input id="nu-name" type="text" placeholder="username" autocomplete="off" spellcheck="false">
+            <input id="nu-pass" type="password" placeholder="temporary password (12+ characters)" autocomplete="new-password">
+            <select id="nu-role"><option value="viewer">viewer (read only)</option><option value="analyst" selected>analyst (scan, check URLs)</option><option value="admin">admin (intel, rules, users)</option></select>
+          </div>
+          <label class="check"><input id="nu-force" type="checkbox" checked> Must change the password at first sign-in</label>
+          <button class="primary" type="submit">Create account</button>
+        </form>
+        <div id="users-msg"></div>
+        <h3>Audit log <small>(latest 100 events)</small></h3>
+        <div id="audit-out"></div>
+      </section>
+    </main>
+    <footer>Tollgate &middot; static analysis, sandbox integration and threat intel &middot; "Clean" means no known indicators, not proof of safety.</footer>
+  </div>
+
+  <div id="modal-root"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

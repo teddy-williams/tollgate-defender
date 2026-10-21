@@ -1,0 +1,15 @@
+name: Detection rule or feature idea
+description: Propose a YARA rule, heuristic or feature
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: "What should Tollgate detect or do?"
+      description: "Link public write-ups where possible."
+    validations:
+      required: true
+  - type: textarea
+    id: indicators
+    attributes:
+      label: "Indicators or file structure the rule would key on"

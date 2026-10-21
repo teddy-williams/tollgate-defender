@@ -1,0 +1,5 @@
+Tollgate
+Copyright 2026 Ghost
+
+This product includes software developed for defensive security use.
+Third-party components are used under their own licenses (pefile, yara-python, FastAPI, Uvicorn, python-multipart).

@@ -1,0 +1,27 @@
+name: False positive / false negative
+description: Tollgate flagged something benign, or missed something malicious
+labels: [detection]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which kind of error?
+      options:
+        - False positive (benign file flagged)
+        - False negative (malicious file missed)
+    validations:
+      required: true
+  - type: input
+    id: hash
+    attributes:
+      label: "SHA-256 of the file (or the URL, defanged)"
+      description: "Do not attach malware here. A hash is enough."
+  - type: textarea
+    id: rules
+    attributes:
+      label: "Which findings / rule IDs fired?"
+      description: "For example: YARA_Script_Download_And_Execute, PE_PACKER"
+  - type: textarea
+    id: why
+    attributes:
+      label: "Why is the verdict wrong?"

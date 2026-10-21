@@ -1,0 +1,35 @@
+name: Bug report
+description: Something in Tollgate is broken or crashes
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: "What happened, and what did you expect instead?"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: "Commands or clicks. Never attach live malware; use a hash or a synthetic file."
+  - type: input
+    id: version
+    attributes:
+      label: Tollgate version
+      placeholder: "pip show tollgate-defender, or the image tag"
+  - type: dropdown
+    id: install
+    attributes:
+      label: "How are you running it?"
+      options:
+        - Docker Compose
+        - pip / pipx
+        - Offline bundle
+        - Docker image only
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      render: shell

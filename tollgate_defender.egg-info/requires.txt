@@ -1,0 +1,17 @@
+pefile>=2023.2.7
+
+[all]
+tollgate-defender[web,yara]
+
+[dev]
+pytest>=8.0
+httpx>=0.27
+ruff>=0.5
+
+[web]
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+
+[yara]
+yara-python>=4.5.0

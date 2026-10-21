@@ -1,0 +1,79 @@
+# Tollgate 0.4. Quick start:
+#   cp .env.example .env                       (set TOLLGATE_TRACER_TOKEN; see the file)
+#   mkdir -p data samples && sudo chown 10001 data           (Linux only)
+#   docker compose up -d --build api tracer                  UI + API on http://127.0.0.1:8080
+#   docker compose run --rm cli user create-master YOUR-USERNAME      (asks for your password; creates the owner account)
+# Then sign in at the UI. More:
+#   docker compose run --rm cli scan /samples/suspect.bin    offline CLI scan (no network at all)
+#   docker compose --profile updates up -d updater           scheduled threat-feed updates (needs ABUSECH_AUTH_KEY in .env)
+#   docker compose --profile demo up -d fake-cape            FAKE sandbox for trying dynamic analysis (see docs/CAPE.md)
+x-hardening: &hardening
+  image: ${TOLLGATE_IMAGE:-tollgate:0.4}
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 128
+
+services:
+  api:                       # UI + API: owns the database, accounts and YARA. Never browses the web itself.
+    <<: *hardening
+    build: .
+    entrypoint: ["python", "-m", "uvicorn", "tollgate.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+    ports: ["127.0.0.1:8080:8080"]          # localhost only; put TLS in front before exposing it (docs/DEPLOYMENT.md)
+    mem_limit: 1g
+    tmpfs: ["/tmp:size=128m,noexec,nosuid"] # upload spool
+    environment:
+      TOLLGATE_TRACER_URL: http://tracer:8081
+      TOLLGATE_TRACER_TOKEN: ${TOLLGATE_TRACER_TOKEN:?set TOLLGATE_TRACER_TOKEN in .env}
+      TOLLGATE_MAX_UPLOAD_MB: "50"
+      TOLLGATE_COOKIE_SECURE: ${TOLLGATE_COOKIE_SECURE:-auto}     # auto = Secure cookie when served over HTTPS
+      TOLLGATE_TRUST_PROXY: ${TOLLGATE_TRUST_PROXY:-0}            # 1 only behind your own reverse proxy
+      TOLLGATE_MASTER_USERNAME: ${TOLLGATE_MASTER_USERNAME:-}     # optional first-start bootstrap (see .env.example)
+      TOLLGATE_MASTER_PASSWORD: ${TOLLGATE_MASTER_PASSWORD:-}
+      TOLLGATE_CAPE_URL: ${TOLLGATE_CAPE_URL:-}                   # optional sandbox (docs/CAPE.md)
+      TOLLGATE_CAPE_TOKEN: ${TOLLGATE_CAPE_TOKEN:-}
+      TOLLGATE_CAPE_TIMEOUT: ${TOLLGATE_CAPE_TIMEOUT:-120}
+      TOLLGATE_CAPE_OPTIONS: ${TOLLGATE_CAPE_OPTIONS:-}
+      TOLLGATE_CAPE_VERIFY_TLS: ${TOLLGATE_CAPE_VERIFY_TLS:-1}
+    volumes:
+      - ./data:/data                        # database (accounts, history, intel) + your own YARA rules (data/rules)
+    depends_on: [tracer]
+
+  tracer:                    # the ONLY service that follows redirects: no database, no samples, SSRF-guarded
+    <<: *hardening
+    build: .
+    entrypoint: ["python", "-m", "uvicorn", "tollgate.tracer_service:create_app", "--factory", "--host", "0.0.0.0", "--port", "8081"]
+    mem_limit: 256m
+    tmpfs: ["/tmp:size=16m,noexec,nosuid"]
+    environment:
+      TOLLGATE_TRACER_TOKEN: ${TOLLGATE_TRACER_TOKEN:?set TOLLGATE_TRACER_TOKEN in .env}
+
+  cli:                       # offline command line, incl. account management (works directly on the database)
+    <<: *hardening
+    build: .
+    network_mode: none
+    mem_limit: 512m
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    volumes:
+      - ./samples:/samples:ro
+      - ./data:/data
+
+  updater:                   # scheduled threat-feed download: network on, no samples mounted, holds the abuse.ch key
+    <<: *hardening
+    build: .
+    profiles: ["updates"]
+    command: ["intel", "fetch", "--every", "21600"]      # every 6 hours (minimum allowed: 300 seconds)
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      ABUSECH_AUTH_KEY: ${ABUSECH_AUTH_KEY:-}
+    volumes:
+      - ./config:/config:ro
+      - ./data:/data
+
+  fake-cape:                 # FAKE sandbox API for demos: executes nothing, returns canned reports
+    <<: *hardening
+    build: .
+    profiles: ["demo"]
+    entrypoint: ["python", "-m", "tollgate.fake_cape", "--host", "0.0.0.0", "--port", "8090", "--token", "demo-token"]
+    mem_limit: 128m

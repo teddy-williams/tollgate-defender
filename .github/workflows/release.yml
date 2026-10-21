@@ -1,0 +1,68 @@
+name: Release
+# Push a tag like v0.3.0 (must match tollgate/__init__.py) to publish a GitHub Release with:
+#   wheel + sdist, offline wheelhouses (Linux + Windows), an offline Docker image tarball,
+#   and a container image on GHCR.  PyPI publishing is optional (see the last job).
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tag must match the package version
+        run: |
+          VERSION="$(python -c 'import tollgate; print(tollgate.__version__)')"
+          [ "v$VERSION" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != package version v$VERSION"; exit 1; }
+      - name: Build wheel and sdist
+        run: python -m pip install build && python -m build
+      - name: Smoke-test the built wheel
+        run: |
+          python -m venv /tmp/t && /tmp/t/bin/pip install "$(ls dist/*.whl)[all]"
+          /tmp/t/bin/tollgate defang http://example.com/a && /tmp/t/bin/tollgate yara list
+      - name: Offline wheelhouses (Linux x86_64 and Windows x64, CPython 3.12)
+        run: |
+          WHEEL="$(ls dist/*.whl)"
+          pip download "$WHEEL[all]" -d wh-linux && cp "$WHEEL" wh-linux/
+          tar czf "tollgate-wheelhouse-linux-cp312-$GITHUB_REF_NAME.tar.gz" wh-linux
+          pip download "$WHEEL[all]" -d wh-win --platform win_amd64 --python-version 3.12 --only-binary=:all: --implementation cp
+          cp "$WHEEL" wh-win/ && tar czf "tollgate-wheelhouse-windows-cp312-$GITHUB_REPOSITORY_OWNER-$GITHUB_REF_NAME.tar.gz" wh-win
+      - name: Build image, save offline tarball, push to GHCR
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker build -t "$IMAGE:${GITHUB_REF_NAME#v}" -t "$IMAGE:latest" .
+          docker save "$IMAGE:${GITHUB_REF_NAME#v}" | gzip > "tollgate-image-$GITHUB_REF_NAME.tar.gz"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push --all-tags "$IMAGE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*
+            tollgate-wheelhouse-*.tar.gz
+            tollgate-image-*.tar.gz
+
+  publish-pypi:                       # optional: set repository variable PUBLISH_PYPI=true and configure Trusted Publishing
+    needs: release
+    if: vars.PUBLISH_PYPI == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
